@@ -1,0 +1,198 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE_CONTENT
+  AGGRESSIVE_SPEECH
+  OTHER
+}
+
+model User {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  email         String         @unique
+  password      String
+  username      String?
+  avatarUrl     String?
+  dateOfBirth   DateTime?
+  createdAt     DateTime       @default(now())
+  bio           String?
+  location      String?
+  posts         Post[]
+  likes         Like[]
+  dislike       Dislike[]
+  comments      Comment[]
+  followers     Follows[]      @relation("following")
+  following     Follows[]      @relation("follower")
+  userTags      UserTag[]
+  topics        TopicSubs[]    @relation("topicFollower")
+  authorTopic   Topic[]        
+  category      CategorySubs[] @relation("categoryFollower")
+  notifications Notification[]
+  isAdmin       Boolean        @default(false)
+  reportsSent   Report[]       @relation("UserReports")
+}
+
+model Notification {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id])
+  postId     String?  @db.ObjectId
+  topicId    String?  @db.ObjectId
+  followsId  String?  @db.ObjectId
+  follows    Follows? @relation(fields: [followsId], references: [id])
+  objectType String
+  post       Post?    @relation(fields: [postId], references: [id])
+  topic      Topic?   @relation(fields: [topicId], references: [id])
+  timestamp  DateTime @default(now())
+  isRead     Boolean  @default(false)
+}
+
+model Follows {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  follower          User           @relation("follower", fields: [followerId], references: [id])
+  followerId        String         @db.ObjectId
+  following         User           @relation("following", fields: [followingId], references: [id])
+  followingId       String         @db.ObjectId
+  notificationsSent Notification[]
+}
+
+model Topic {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  description   String?
+  category      Category?      @relation(fields: [categoryId], references: [id])
+  categoryId    String?        @db.ObjectId
+  topicSubs     TopicSubs[]
+  posts         Post[]
+  notifications Notification[]
+  likes         Like[]
+  author        User          @relation(fields: [authorId], references: [id])
+  authorId      String        @db.ObjectId
+  createdAt     DateTime      @default(now())
+}
+
+model Category {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  description  String?
+  posts        Post[]
+  topics       Topic[]
+  categorySubs CategorySubs[]
+  avatarUrl    String?
+}
+
+model CategorySubs {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String   @db.ObjectId
+  follower   User     @relation("categoryFollower", fields: [followerId], references: [id])
+  followerId String   @db.ObjectId
+}
+
+model TopicSubs {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  topic      Topic  @relation(fields: [topicId], references: [id])
+  topicId    String @db.ObjectId
+  follower   User   @relation("topicFollower", fields: [followerId], references: [id])
+  followerId String @db.ObjectId
+}
+
+model Post {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  content       String
+  author        User           @relation(fields: [authorId], references: [id])
+  authorId      String         @db.ObjectId
+  likes         Like[]
+  dislikes      Dislike[]
+  comments      Comment[]
+  createdAt     DateTime       @default(now())
+  topic         Topic?         @relation(fields: [topicId], references: [id])
+  topicId       String?        @db.ObjectId
+  category      Category?      @relation(fields: [categoryId], references: [id])
+  categoryId    String?        @db.ObjectId
+  postTags      PostTag[]
+  notifications Notification[]
+  reports       Report[]       @relation("PostReports")
+}
+
+model Like {
+  id      String  @id @default(auto()) @map("_id") @db.ObjectId
+  user    User    @relation(fields: [userId], references: [id])
+  userId  String  @db.ObjectId
+  posts   Post?   @relation(fields: [postId], references: [id])
+  postId  String? @db.ObjectId
+  topic   Topic?  @relation(fields: [topicId], references: [id])
+  topicId String? @db.ObjectId
+}
+
+model Dislike {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @db.ObjectId
+  posts  Post   @relation(fields: [postId], references: [id])
+  postId String @db.ObjectId
+}
+
+model Comment {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  content          String
+  user             User      @relation(fields: [userId], references: [id])
+  userId           String    @db.ObjectId
+  posts            Post      @relation(fields: [postId], references: [id])
+  postId           String    @db.ObjectId
+  replyToComment   Comment?  @relation("CommentReplies", fields: [replyToCommentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replyToCommentId String?   @db.ObjectId
+  replies          Comment[] @relation("CommentReplies")
+  createdAt        DateTime  @default(now())
+}
+
+model Tag {
+  id       String    @id @default(auto()) @map("_id") @db.ObjectId
+  name     String    @unique
+  postTags PostTag[]
+  userTags UserTag[]
+}
+
+model PostTag {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  post   Post   @relation(fields: [postId], references: [id])
+  postId String @db.ObjectId
+  tag    Tag    @relation(fields: [tagId], references: [id])
+  tagId  String @db.ObjectId
+}
+
+model UserTag {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @db.ObjectId
+  tag    Tag    @relation(fields: [tagId], references: [id])
+  tagId  String @db.ObjectId
+}
+
+model Report {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  reportedBy   User      @relation("UserReports", fields: [reportedById], references: [id])
+  reportedById String    @db.ObjectId
+  post         Post      @relation("PostReports", fields: [postId], references: [id])
+  postId       String    @db.ObjectId
+  reason       ReportReason
+  comment      String?
+  createdAt    DateTime  @default(now())
+  isProcessed  Boolean   @default(false)
+  processedBy  String?   @db.ObjectId
+  processedAt  DateTime?
+}
